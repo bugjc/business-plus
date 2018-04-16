@@ -11,11 +11,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TODO 重试策略抽象出服务功能
- * TODO 测试目标服务是否具有事务特性
- * TODO 集中命中环形队列中的几个格子，测试性能
- * TODO 分散任务到不同的格子，测试性能
- * TODO 抽取fastJson增强map工具类代替Map对象
+ * 1、重试策略抽象出服务功能
+ * 2、测试目标服务是否具有事务特性
+ * 3、集中命中环形队列中的几个格子，测试性能
+ * 4、分散任务到不同的格子，测试性能
+ * TODO 5、抽取fastJson增强map工具类代替Map对象
  * 重试策略异步任务类
  * @author aoki
  * @create 2018-03-23
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 @Setter
 public class RetryStrategyTask implements TimerTask{
 
-	//重试次数（默认最大重试10次
+	//重试次数（默认最大重试10次,0则是无限次数
 	private Integer retryCount = 10;
 	//当前重试数（默认1开始）
 	private Integer currentRetryNumber = 1;
@@ -51,13 +51,13 @@ public class RetryStrategyTask implements TimerTask{
 	@Override
 	public void run(Timeout timeout) throws Exception {
 		try {
-			RetryStrategyService serviceTask = (RetryStrategyService) param.get("targetService");//方法实现
+			RetryStrategyService serviceTask = (RetryStrategyService) getParam().get("targetService");//方法实现
 			Object targetMethodParam = null;//主方法参数
-			if (param.containsKey("targetMethodParam")){
-				targetMethodParam = param.get("targetMethodParam");
+			if (getParam().containsKey("targetMethodParam")){
+				targetMethodParam = getParam().get("targetMethodParam");
 			}
 
-			if (currentRetryNumber <= retryCount){ //券使用回调通知重试总次数
+			if (getRetryCount() == 0 || getCurrentRetryNumber() <= getRetryCount()){ //券使用回调通知重试总次数
 				boolean flag = false;
 				try {
 					flag = serviceTask.businessLogicRun(targetMethodParam);
@@ -71,11 +71,11 @@ public class RetryStrategyTask implements TimerTask{
 
 
 				//计算下一次调度时间
-				int delayTime = serviceTask.expTimeRule(currentRetryNumber,retryCount);
-				delayTime = delayTime == 0 ? currentRetryNumber*2 : delayTime;
-				Console.log("触发重试策略-下一次调度时间是"+ delayTime+" "+timeUnit+"后，总共调度了"+currentRetryNumber+"次。");
+				int delayTime = serviceTask.expTimeRule(getCurrentRetryNumber(),getRetryCount());
+				delayTime = delayTime == 0 ? getCurrentRetryNumber() * 2 : delayTime;
+				Console.log("触发重试策略-下一次调度时间是"+ delayTime+" "+getTimeUnit()+"后，总共调度了"+getCurrentRetryNumber()+"次。");
 				//添加任务
-				NettyTimerUtil.addTask(new RetryStrategyTask(++currentRetryNumber,param),delayTime, timeUnit);
+				NettyTimerUtil.addTask(new RetryStrategyTask(getCurrentRetryNumberIncrement(),getParam()),delayTime, getTimeUnit());
 
 			}else{
 				Console.log("重试多次还未得到预定结果");
@@ -87,7 +87,11 @@ public class RetryStrategyTask implements TimerTask{
 			Console.error(ex);
 		}
 
+	}
 
+	private int getCurrentRetryNumberIncrement(){
+		setCurrentRetryNumber(getCurrentRetryNumber() + 1);
+		return getCurrentRetryNumber();
 	}
 
 }
